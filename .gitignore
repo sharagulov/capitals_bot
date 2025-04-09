@@ -1,0 +1,35 @@
+# Игнорируем зависимости (даже вложенные)
+node_modules/
+*/node_modules/
+
+# Игнорируем локальные файлы окружения
+.env
+.env.local
+.env.*.local
+
+# Игнорируем папки, созданные при тестировании
+coverage/
+
+# Игнорируем сборку React
+client/build/
+
+# Игнорируем сборку сервера (если есть)
+server/dist/
+
+# Игнорируем кеши и временные файлы
+.pnp
+.pnp.js
+.DS_Store
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Игнорируем файлы Vercel и Railway
+.vercel
+.railway
+
+# Игнорируем файлы GitHub Actions (если не используешь)
+.github/
