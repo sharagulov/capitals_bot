@@ -2,7 +2,11 @@
 
 import { Context } from "telegraf";
 import { CallbackQuery } from "telegraf/typings/core/types/typegram";
-import { updateMode, updatePoolSize, updateRegion } from "@/services/update.service";
+import {
+  updateMode,
+  updatePoolSize,
+  updateRegion,
+} from "@/services/update.service";
 import {
   handleModeMenu,
   handlePoolSizeMenu,
@@ -10,8 +14,9 @@ import {
   handleStatsMenu,
   handleSettingsMenu,
   handleRegionMenu,
+  handleQuestionsMenu,
 } from "@/services/menu.service";
-import { goHandler } from "@/handlers/go.handler";
+import { goHandler, sessionWatch } from "@/handlers/go.handler";
 
 const staticRoutes: Record<string, (ctx: Context) => Promise<any>> = {
   start_menu: goHandler,
@@ -21,14 +26,18 @@ const staticRoutes: Record<string, (ctx: Context) => Promise<any>> = {
   mode_menu: handleModeMenu,
   pool_menu: handlePoolSizeMenu,
   region_menu: handleRegionMenu,
+  questions_menu: handleQuestionsMenu,
+  force_callback: async (ctx: Context) => sessionWatch(ctx, "не знаю"),
 };
 
-const dynamicRoutes: Record<string, (ctx: Context, value: string) => Promise<any>> = {
+const dynamicRoutes: Record<
+  string,
+  (ctx: Context, value: string) => Promise<any>
+> = {
   pool: updatePoolSize,
   mode: updateMode,
   region: updateRegion,
 };
-
 
 export async function handleCallback(ctx: Context) {
   await ctx.answerCbQuery();

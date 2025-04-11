@@ -30,6 +30,8 @@ model User {
   poolSize        Int           @default(20)
   gameMode        String        @default("Угадай столицу")
   preferredRegion String        @default("Все")
+  questionsMode   Boolean       @default(false)
+
   stats           SessionStat[] // связь со статистикой
 }
 

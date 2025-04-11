@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "NODE_ENV=development ts-node -r tsconfig-paths/register src/bot.ts"
+    "dev": "NODE_ENV=development ts-node -r tsconfig-paths/register src/bot.ts",
+    "no:dev": "nodemon --watch src --exec \"ts-node -r tsconfig-paths/register\" src/bot.ts"
   },
   "keywords": [],
   "author": "",

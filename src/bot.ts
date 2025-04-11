@@ -1,5 +1,5 @@
 import express from "express";
-import { Telegraf } from "telegraf";
+import { Context, Telegraf } from "telegraf";
 import { BOT_TOKEN } from "@/config/config";
 import { startHandler } from "@/handlers/start.handler";
 import { handleCallback } from "@/handlers/callback.handler";
@@ -11,7 +11,10 @@ const app = express();
 bot.start(startHandler);
 
 bot.on("callback_query", handleCallback);
-bot.on("text", sessionWatch);
+
+bot.on("text", async (Context) => {
+  await sessionWatch(Context);
+});
 
 app.use(bot.webhookCallback("/capitals"));
 

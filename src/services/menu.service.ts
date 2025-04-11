@@ -2,6 +2,9 @@ import { Context } from "telegraf";
 import { registerUser } from "./register.service";
 import { ADMIN_PASS } from "@/config/config";
 import { getUserInfo } from "./update.service";
+import { prisma } from "@/prisma";
+import { clearSession } from "@/redis/session";
+import { abortSession } from "@/utils/helpers";
 
 export async function handlePoolSizeMenu(ctx: Context) {
   await ctx.editMessageText(
@@ -49,20 +52,48 @@ export async function handleRegionMenu(ctx: Context) {
           [
             { text: "Северная Америка", callback_data: "region_north" },
             { text: "Южная Америка", callback_data: "region_south" },
-            { text: "Океания", callback_data: "region_oceania" },
           ],
-          [{ text: "⭐ Все", callback_data: "region_all" }],
+          [
+            { text: "Океания", callback_data: "region_oceania" },
+            { text: "⭐ Все", callback_data: "region_all" },
+          ],
         ],
       },
     }
   );
 }
 
+export async function handleQuestionsMenu(ctx: Context) {
+  if (!ctx.from) throw new Error("ctx.from missing");
+  const { id } = ctx.from;
+
+  const user = await prisma.user.findUnique({
+    where: { telegramId: id },
+    select: { questionsMode: true },
+  });
+
+  if (!user) throw new Error("User not found");
+
+  const newMode = !user.questionsMode;
+
+  await prisma.user.update({
+    where: { telegramId: id },
+    data: { questionsMode: newMode },
+  });
+
+  ctx.deleteMessage()
+  return handleStartMenu(ctx);
+}
+
 export async function handleStartMenu(ctx: Context) {
   const userInfo = await getUserInfo(ctx);
 
   await ctx.reply(
-    `ТЕКУЩИЕ УСТАНОВКИ\n— 🎲 Размер круга: ${userInfo?.poolSize}\n— 🏃 Режим игры: ${userInfo?.gameMode}\n— 🌏 Регион: ${userInfo?.preferredRegion}`,
+    `ТЕКУЩИЕ УСТАНОВКИ\n` +
+      `— 🏃 Размер круга: ${userInfo?.poolSize}\n` +
+      `— 🎲 Режим игры: ${userInfo?.gameMode}\n` +
+      `— 🌏 Регион: ${userInfo?.preferredRegion}\n` +
+      `— ❓ Вопросы: ${userInfo?.questionsMode ? "Включены" : "Отключены"}`,
     {
       parse_mode: "Markdown",
       reply_markup: {
@@ -80,17 +111,23 @@ export async function handleStartMenu(ctx: Context) {
 }
 
 export async function handleSettingsMenu(ctx: Context) {
+  await abortSession(ctx);
   await ctx.editMessageText(
-    `⚙️ НАСТРОЙКИ\n` +
-      `— *Круг* регулирует размер группы слов, которые предлагаются для отгадываня\n` +
-      `— *Режим* переключает режим игры\n`,
+    `⚙️ НАСТРОЙКИ\n\n` +
+      `— *Круг* регулирует размер группы слов, которые предлагаются для отгадываня\n\n` +
+      `— *Режим* переключает режим игры\n\n` +
+      `— *Регион* фильтрует страны по частям света\n\n` +
+      `— *Вопросы* включает кнопку под каждым словом, которая показывает верный ответ\n\n`,
     {
       parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "Круг", callback_data: "pool_menu" }],
-          [{ text: "Режим", callback_data: "mode_menu" }],
-          [{ text: "Регион", callback_data: "region_menu" }],
+          [
+            { text: "Круг", callback_data: "pool_menu" },
+            { text: "Режим", callback_data: "mode_menu" },
+            { text: "Регион", callback_data: "region_menu" },
+          ],
+          [{ text: "Вопросы", callback_data: "questions_menu" }],
         ],
       },
     }
@@ -98,6 +135,7 @@ export async function handleSettingsMenu(ctx: Context) {
 }
 
 export async function handleStatsMenu(ctx: Context) {
+  await abortSession(ctx);
   await ctx.editMessageText(`😩 УПС! Этот раздел находится в разработке`, {
     parse_mode: "Markdown",
   });
@@ -106,11 +144,25 @@ export async function handleStatsMenu(ctx: Context) {
 }
 
 export async function handleAboutMenu(ctx: Context) {
-  await ctx.editMessageText(
-    `🌍 *CAPITALS* — твой личный тренажёр по столицам мира!\n\n` +
-      `🧠 Я помогаю запоминать страны и столицы в лёгком игровом формате. Просто выбирай режим, нажимай *🚀 Начать* и тренируйся каждый день.\n\n` +
-      `📈 Веду твою статистику, отслеживаю ошибки и напоминаю о том, что сегодня нужно пройти хотя бы один круг :)\n\n` +
-      `_Версия MVP_`,
+  await abortSession(ctx);
+  await ctx.reply(
+    `ℹ️ *О проекте CAPITALS*\n\n` +
+      `Это бот для тренировки знаний столиц и стран.\n` +
+      `✌ *Правила простые.* Запускается сессия, создается «круг» из столиц/стран. Сессия длится, пока ты не ответишь правильно на все слова из созданного круга. При неверном ответе столица/страна будет продолжать попадаться в данной сессии. Отгадаешь все слова из круга — начнется новая сессия. \n` +
+      `🔹 *Поддерживает два режима:*\n` +
+      `— Угадай столицу по стране\n` +
+      `— Угадай страну по столице\n\n` +
+      `🔹 *Есть настройка размера круга* (сколько заданий за сессию)\n` +
+      `🔹 *Можно выбрать регион* (Европа, Азия и т.д.)\n\n` +
+      `🔹 *Сохраняется статистика* (в процессе доработки)\n\n` +
+      `❇ Все столицы и страны, имеющие составные названия через дефис или пробел принимаются *без разделения* или *c пробелом*, пример:\n` +
+      `✅ _Сент Китс = СентКитс_\n` +
+      `❌ _Сент-Китс_\n\n` +
+      `⚠️ *Возможные баги*\n` +
+      `— Иногда бот не показывает информацию о том, правильный ли ответ\n` +
+      `— Сильная зависимость скорости работы бота от качества интернет-соединения\n` +
+      `— Потеря сесии после выхода во время игры (не страшно)\n\n` +
+      `_Версия: MVP. Функционал в разработке_`,
     {
       parse_mode: "Markdown",
     }
