@@ -2,27 +2,31 @@
 
 import { Context } from "telegraf";
 import { CallbackQuery } from "telegraf/typings/core/types/typegram";
-import { updateMode, updatePoolSize } from "@/services/update.service";
+import { updateMode, updatePoolSize, updateRegion } from "@/services/update.service";
 import {
   handleModeMenu,
   handlePoolSizeMenu,
   handleAboutMenu,
   handleStatsMenu,
   handleSettingsMenu,
+  handleRegionMenu,
 } from "@/services/menu.service";
+import { goHandler } from "@/handlers/go.handler";
 
 const staticRoutes: Record<string, (ctx: Context) => Promise<any>> = {
-  start_menu: handlePoolSizeMenu,
+  start_menu: goHandler,
   stats_menu: handleStatsMenu,
   settings_menu: handleSettingsMenu,
   about_menu: handleAboutMenu,
   mode_menu: handleModeMenu,
   pool_menu: handlePoolSizeMenu,
+  region_menu: handleRegionMenu,
 };
 
 const dynamicRoutes: Record<string, (ctx: Context, value: string) => Promise<any>> = {
   pool: updatePoolSize,
   mode: updateMode,
+  region: updateRegion,
 };
 
 

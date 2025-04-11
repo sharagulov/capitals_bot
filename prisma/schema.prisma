@@ -8,27 +8,29 @@ datasource db {
 }
 
 model Country {
-  id        Int      @id @default(autoincrement())
-  name      String // страна
-  capital   String // столица
-  region    String // Европа, Азия и т.д.
-  addedBy   String? // кто добавил (если админ)
-  createdAt DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  name       String // страна
+  addName    String?
+  capital    String // столица
+  addCapital String?
+  region     String // Европа, Азия и т.д.
+  addedBy    String? // кто добавил (если админ)
+  createdAt  DateTime @default(now())
 
   stats SessionStat[] // связь с ошибками/ответами
 }
 
 model User {
-  id         Int      @id @default(autoincrement())
-  username   String
-  shortName  String?
-  telegramId BigInt   @unique
-  isAdmin    Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  poolSize   Int      @default(20)
-  gameMode   Boolean  @default(false)
-
-  stats SessionStat[] // связь со статистикой
+  id              Int           @id @default(autoincrement())
+  username        String
+  shortName       String?
+  telegramId      BigInt        @unique
+  isAdmin         Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  poolSize        Int           @default(20)
+  gameMode        String        @default("Угадай столицу")
+  preferredRegion String        @default("Все")
+  stats           SessionStat[] // связь со статистикой
 }
 
 model SessionStat {

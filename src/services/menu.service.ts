@@ -1,6 +1,7 @@
 import { Context } from "telegraf";
 import { registerUser } from "./register.service";
 import { ADMIN_PASS } from "@/config/config";
+import { getUserInfo } from "./update.service";
 
 export async function handlePoolSizeMenu(ctx: Context) {
   await ctx.editMessageText(
@@ -9,9 +10,11 @@ export async function handlePoolSizeMenu(ctx: Context) {
       parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "10", callback_data: "pool_10" }],
-          [{ text: "15", callback_data: "pool_15" }],
-          [{ text: "20", callback_data: "pool_20" }],
+          [
+            { text: "10", callback_data: "pool_10" },
+            { text: "15", callback_data: "pool_15" },
+            { text: "20", callback_data: "pool_20" },
+          ],
         ],
       },
     }
@@ -23,16 +26,43 @@ export async function handleModeMenu(ctx: Context) {
     parse_mode: "Markdown",
     reply_markup: {
       inline_keyboard: [
-        [{ text: "Угадать столицу", callback_data: "mode_true" }],
-        [{ text: "Угадать страну", callback_data: "mode_false" }],
+        [{ text: "Угадай столицу", callback_data: "mode_capitals" }],
+        [{ text: "Угадай страну", callback_data: "mode_countries" }],
+        [{ text: "Сложный (пока нельзя выбрать)", callback_data: "mode_hard" }],
       ],
     },
   });
 }
 
+export async function handleRegionMenu(ctx: Context) {
+  await ctx.editMessageText(
+    `👉 Выбери *регион* попадающихся стран (не учитывается в сложном режиме):`,
+    {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "Европа", callback_data: "region_europe" },
+            { text: "Азия", callback_data: "region_asia" },
+            { text: "Африка", callback_data: "region_africa" },
+          ],
+          [
+            { text: "Северная Америка", callback_data: "region_north" },
+            { text: "Южная Америка", callback_data: "region_south" },
+            { text: "Океания", callback_data: "region_oceania" },
+          ],
+          [{ text: "⭐ Все", callback_data: "region_all" }],
+        ],
+      },
+    }
+  );
+}
+
 export async function handleStartMenu(ctx: Context) {
+  const userInfo = await getUserInfo(ctx);
+
   await ctx.reply(
-    `МЕНЮ\n— залезть в ⚙️ Настройки\n— глянуть на 📊 Статистику\n— сразу 🚀 Начать!`,
+    `ТЕКУЩИЕ УСТАНОВКИ\n— 🎲 Размер круга: ${userInfo?.poolSize}\n— 🏃 Режим игры: ${userInfo?.gameMode}\n— 🌏 Регион: ${userInfo?.preferredRegion}`,
     {
       parse_mode: "Markdown",
       reply_markup: {
@@ -60,6 +90,7 @@ export async function handleSettingsMenu(ctx: Context) {
         inline_keyboard: [
           [{ text: "Круг", callback_data: "pool_menu" }],
           [{ text: "Режим", callback_data: "mode_menu" }],
+          [{ text: "Регион", callback_data: "region_menu" }],
         ],
       },
     }

@@ -2,10 +2,13 @@ import { Context } from "telegraf";
 import { registerUser } from "@/services/register.service";
 import { ADMIN_PASS } from "@/config/config";
 import { handleStartMenu } from "@/services/menu.service";
+import { clearSession } from "@/redis/session";
 
 export async function startHandler(ctx: Context) {
   if (!("text" in ctx.message!)) return;
   const isAdmin = ctx.message?.text?.split(" ").slice(1)[0] === ADMIN_PASS;
+
+  await clearSession(ctx.from!.id)
 
   const { user, newUser, adminGiven } = await registerUser(ctx, isAdmin);
   if (newUser) {

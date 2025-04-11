@@ -3,7 +3,7 @@ import { Telegraf } from "telegraf";
 import { BOT_TOKEN } from "@/config/config";
 import { startHandler } from "@/handlers/start.handler";
 import { handleCallback } from "@/handlers/callback.handler";
-import { handleAboutMenu, handleSettingsMenu, handleStatsMenu } from "./services/menu.service";
+import { sessionWatch } from "@/handlers/go.handler";
 
 const bot = new Telegraf(BOT_TOKEN);
 const app = express();
@@ -11,13 +11,9 @@ const app = express();
 bot.start(startHandler);
 
 bot.on("callback_query", handleCallback);
-
-bot.hears('⚙️ Настройки', handleSettingsMenu)
-bot.hears('📊 Статистика', handleStatsMenu)
-bot.hears('🤓 О боте', handleAboutMenu)
+bot.on("text", sessionWatch);
 
 app.use(bot.webhookCallback("/capitals"));
-
 
 bot.telegram.setWebhook("https://voocaboolary.site/capitals");
 
