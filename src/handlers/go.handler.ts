@@ -145,8 +145,9 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
     );
   }
 
+  await delay(2000);
+
   if (!forcedAnswer) {
-    await delay(2000);
     try {
       await ctx.deleteMessage();
     } catch (e) {
@@ -162,8 +163,6 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
       correct,
       incorrect,
     });
-
-    await delay(2000);
 
     const showFlagInQuestion = userInfo!.gameMode === "Угадай столицу";
     const nextFlag =
