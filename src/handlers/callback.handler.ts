@@ -15,6 +15,7 @@ import {
   handleSettingsMenu,
   handleRegionMenu,
   handleQuestionsMenu,
+  goToMainMenu,
 } from "@/services/menu.service";
 import { goHandler, sessionWatch } from "@/handlers/go.handler";
 
@@ -27,6 +28,7 @@ const staticRoutes: Record<string, (ctx: Context) => Promise<any>> = {
   pool_menu: handlePoolSizeMenu,
   region_menu: handleRegionMenu,
   questions_menu: handleQuestionsMenu,
+  main_menu: goToMainMenu,
   force_callback: async (ctx: Context) => sessionWatch(ctx, "не знаю"),
 };
 

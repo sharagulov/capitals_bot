@@ -15,6 +15,7 @@ model Country {
   addCapital String?
   region     String // Европа, Азия и т.д.
   addedBy    String? // кто добавил (если админ)
+  flag       String?
   createdAt  DateTime @default(now())
 
   stats SessionStat[] // связь с ошибками/ответами

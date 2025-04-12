@@ -10,20 +10,29 @@ import {
   randomInt,
 } from "@/utils/helpers";
 import { startHandler } from "./start.handler";
-import { handleStartMenu } from "@/services/menu.service";
 
 export async function goHandler(ctx: Context) {
   const userInfo = await getUserInfo(ctx);
+  const session = await getSession(ctx.from!.id);
+  if (session) return;
   const pool = await getPool(userInfo!.preferredRegion, userInfo!.poolSize);
+
   let currentIndex = randomInt(0, pool.length - 1);
 
+  // Ключи для режима
   const askForMap: Record<string, keyof (typeof pool)[number]> = {
     "Угадай столицу": "name",
     "Угадай страну": "capital",
   };
 
   const askKey = askForMap[userInfo!.gameMode];
-  let currentAsk = pool[currentIndex][askKey];
+
+  const showFlagInQuestion = userInfo!.gameMode === "Угадай столицу";
+  const flag =
+    showFlagInQuestion && pool[currentIndex].flag
+      ? `${pool[currentIndex].flag} `
+      : "";
+  const currentAsk = `${flag}${pool[currentIndex][askKey]}`;
 
   await setSession(ctx.from!.id, {
     pool,
@@ -70,9 +79,8 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
       parse_mode: "Markdown",
     });
     await delay(2000);
-    await ctx.deleteMessage();
-    ctx.deleteMessage(reply.message_id);
-    return;
+    await ctx.deleteMessage(reply.message_id);
+    return startHandler(ctx);
   }
 
   const { pool, dateStart, currentIndex, correct, incorrect, askMessageId } =
@@ -90,10 +98,20 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
 
   const askKey = askForMap[userInfo!.gameMode];
   const answerKey = answerForMap[userInfo!.gameMode];
-  const correctAnswer = pool[currentIndex][answerKey];
-  const correctAnswerAdd = pool[currentIndex][formatToAdd(answerKey)];
 
-  const isCorrect = userAnswer === correctAnswer.trim().toLowerCase();
+  const correctAnswerRaw = pool[currentIndex][answerKey];
+  const correctAnswer = correctAnswerRaw.trim().toLowerCase();
+
+  const answerDisplay =
+    userInfo!.gameMode === "Угадай страну" && pool[currentIndex].flag
+      ? `${pool[currentIndex].flag} ${correctAnswerRaw}`
+      : correctAnswerRaw;
+
+  const isCorrect =
+    userAnswer === correctAnswer ||
+    (pool[currentIndex][formatToAdd(answerKey)] &&
+      userAnswer ===
+        pool[currentIndex][formatToAdd(answerKey)].trim().toLowerCase());
 
   if (isCorrect) {
     correct.push(pool[currentIndex]);
@@ -102,11 +120,14 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
       ctx.chat!.id,
       askMessageId,
       undefined,
-      `✅ Правильно, *${correctAnswer}* ${correctAnswerAdd ? `` : ""}`,
-      {
-        parse_mode: "Markdown",
-      }
+      `✅ Правильно, *${answerDisplay}*${
+        pool[currentIndex][formatToAdd(answerKey)]
+          ? ` (${pool[currentIndex][formatToAdd(answerKey)]})`
+          : ""
+      }`,
+      { parse_mode: "Markdown" }
     );
+    // Если ответ верный, удаляем текущий вопрос из пула
     pool.splice(currentIndex, 1);
   } else {
     incorrect.push(pool[currentIndex]);
@@ -115,22 +136,26 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
       ctx.chat!.id,
       askMessageId,
       undefined,
-      `❌ Правильный ответ: *${correctAnswer}* ${correctAnswerAdd ? `` : ""}`,
-      {
-        parse_mode: "Markdown",
-      }
+      `❌ Правильный ответ: *${answerDisplay}*${
+        pool[currentIndex][formatToAdd(answerKey)]
+          ? ` (${pool[currentIndex][formatToAdd(answerKey)]})`
+          : ""
+      }`,
+      { parse_mode: "Markdown" }
     );
   }
 
   if (!forcedAnswer) {
-    setTimeout(async () => {
-      ctx.deleteMessage();
-    }, 2000);
+    await delay(2000);
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {
+      console.warn("Ошибка удаления сообщения:", e);
+    }
   }
 
-  const nextIndex = randomInt(0, pool.length - 1);
-
   if (pool.length !== 0) {
+    const nextIndex = randomInt(0, pool.length - 1);
     await setSession(ctx.from!.id, {
       ...session,
       currentIndex: nextIndex,
@@ -140,13 +165,19 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
 
     await delay(2000);
 
-    const currentAsk = pool[nextIndex][askKey];
-    const currentAskAdd = pool[nextIndex][formatToAdd(askKey)];
+    const showFlagInQuestion = userInfo!.gameMode === "Угадай столицу";
+    const nextFlag =
+      showFlagInQuestion && pool[nextIndex].flag
+        ? `${pool[nextIndex].flag} `
+        : "";
+    const nextAsk = `${nextFlag}${pool[nextIndex][askKey]}`;
+    const nextAskAdd = pool[nextIndex][formatToAdd(askKey)];
+
     await ctx.telegram.editMessageText(
       ctx.chat!.id,
       askMessageId,
       undefined,
-      `*${currentAsk}* ${currentAskAdd ? `` : ""}`,
+      `*${nextAsk}*${nextAskAdd ? ` (${nextAskAdd})` : ""}`,
       {
         parse_mode: "Markdown",
         reply_markup: {
@@ -173,9 +204,7 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
       `*${getRandomEmoji()} Молодец!* Круг завершен за ${timeDifference}, ошибки: ${
         incorrect.length
       }`,
-      {
-        parse_mode: "Markdown",
-      }
+      { parse_mode: "Markdown" }
     );
     clearSession(ctx.from!.id);
     goHandler(ctx);

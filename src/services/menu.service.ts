@@ -18,6 +18,7 @@ export async function handlePoolSizeMenu(ctx: Context) {
             { text: "15", callback_data: "pool_15" },
             { text: "20", callback_data: "pool_20" },
           ],
+          [{ text: "⬅️ Назад", callback_data: "main_menu" }],
         ],
       },
     }
@@ -31,7 +32,8 @@ export async function handleModeMenu(ctx: Context) {
       inline_keyboard: [
         [{ text: "Угадай столицу", callback_data: "mode_capitals" }],
         [{ text: "Угадай страну", callback_data: "mode_countries" }],
-        [{ text: "Сложный (пока нельзя выбрать)", callback_data: "mode_hard" }],
+        // [{ text: "Сложный (пока нельзя выбрать)", callback_data: "mode_hard" }],
+        [{ text: "⬅️ Назад", callback_data: "main_menu" }],
       ],
     },
   });
@@ -57,6 +59,7 @@ export async function handleRegionMenu(ctx: Context) {
             { text: "Океания", callback_data: "region_oceania" },
             { text: "⭐ Все", callback_data: "region_all" },
           ],
+          [{ text: "⬅️ Назад", callback_data: "main_menu" }],
         ],
       },
     }
@@ -81,7 +84,7 @@ export async function handleQuestionsMenu(ctx: Context) {
     data: { questionsMode: newMode },
   });
 
-  ctx.deleteMessage()
+  ctx.deleteMessage();
   return handleStartMenu(ctx);
 }
 
@@ -89,7 +92,7 @@ export async function handleStartMenu(ctx: Context) {
   const userInfo = await getUserInfo(ctx);
 
   await ctx.reply(
-    `ТЕКУЩИЕ УСТАНОВКИ\n` +
+    `ГЛАВНОЕ МЕНЮ\n` +
       `— 🏃 Размер круга: ${userInfo?.poolSize}\n` +
       `— 🎲 Режим игры: ${userInfo?.gameMode}\n` +
       `— 🌏 Регион: ${userInfo?.preferredRegion}\n` +
@@ -123,11 +126,14 @@ export async function handleSettingsMenu(ctx: Context) {
       reply_markup: {
         inline_keyboard: [
           [
-            { text: "Круг", callback_data: "pool_menu" },
-            { text: "Режим", callback_data: "mode_menu" },
-            { text: "Регион", callback_data: "region_menu" },
+            { text: "🏃 Круг", callback_data: "pool_menu" },
+            { text: "🎲 Режим", callback_data: "mode_menu" },
+            { text: "🌏 Регион", callback_data: "region_menu" },
           ],
-          [{ text: "Вопросы", callback_data: "questions_menu" }],
+          [
+            { text: "⬅️ Назад", callback_data: "main_menu" },
+            { text: "❓ Вопросы", callback_data: "questions_menu" },
+          ],
         ],
       },
     }
@@ -138,17 +144,18 @@ export async function handleStatsMenu(ctx: Context) {
   await abortSession(ctx);
   await ctx.editMessageText(`😩 УПС! Этот раздел находится в разработке`, {
     parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [[{ text: "⬅️ Назад", callback_data: "main_menu" }]],
+    },
   });
-
-  return handleStartMenu(ctx);
 }
 
 export async function handleAboutMenu(ctx: Context) {
   await abortSession(ctx);
-  await ctx.reply(
+  await ctx.editMessageText(
     `ℹ️ *О проекте CAPITALS*\n\n` +
       `Это бот для тренировки знаний столиц и стран.\n` +
-      `✌ *Правила простые.* Запускается сессия, создается «круг» из столиц/стран. Сессия длится, пока ты не ответишь правильно на все слова из созданного круга. При неверном ответе столица/страна будет продолжать попадаться в данной сессии. Отгадаешь все слова из круга — начнется новая сессия. \n` +
+      `✌ *Правила простые.* Запускается сессия, создается «круг» из столиц/стран. Сессия длится, пока ты не ответишь правильно на все слова из созданного круга. При неверном ответе столица/страна будет продолжать попадаться в данной сессии. Отгадаешь все слова из круга — начнется новая сессия. \n\n` +
       `🔹 *Поддерживает два режима:*\n` +
       `— Угадай столицу по стране\n` +
       `— Угадай страну по столице\n\n` +
@@ -165,8 +172,14 @@ export async function handleAboutMenu(ctx: Context) {
       `_Версия: MVP. Функционал в разработке_`,
     {
       parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [[{ text: "⬅️ Назад", callback_data: "main_menu" }]],
+      },
     }
   );
+}
 
+export async function goToMainMenu(ctx: Context) {
+  ctx.deleteMessage();
   return handleStartMenu(ctx);
 }
