@@ -78,9 +78,6 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
     const reply = await ctx.reply("⏳ Кажется, нет активных сессий", {
       parse_mode: "Markdown",
     });
-    await delay(2000);
-    await ctx.deleteMessage(reply.message_id);
-    return startHandler(ctx);
   }
 
   const { pool, dateStart, currentIndex, correct, incorrect, askMessageId } =
