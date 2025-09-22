@@ -9,7 +9,7 @@ import {
   getTimeDiffFormatted,
   randomInt,
 } from "@/utils/helpers";
-import { startHandler } from "./start.handler";
+import { StatsService } from "@/services/stats.service";
 
 export async function goHandler(ctx: Context) {
   const userInfo = await getUserInfo(ctx);
@@ -19,7 +19,6 @@ export async function goHandler(ctx: Context) {
 
   let currentIndex = randomInt(0, pool.length - 1);
 
-  // Ключи для режима
   const askForMap: Record<string, keyof (typeof pool)[number]> = {
     "Угадай столицу": "name",
     "Угадай страну": "capital",
@@ -39,6 +38,7 @@ export async function goHandler(ctx: Context) {
     currentIndex,
     correct: [],
     incorrect: [],
+    answers: [],
     askMessageId: null,
   });
 
@@ -62,6 +62,7 @@ export async function goHandler(ctx: Context) {
     currentIndex,
     correct: [],
     incorrect: [],
+    answers: [],
     askMessageId: message.message_id,
   });
 }
@@ -75,13 +76,21 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
 
   const session = await getSession(ctx.from!.id);
   if (!session) {
-    const reply = await ctx.reply("⏳ Кажется, нет активных сессий", {
+    await ctx.reply("⏳ Кажется, нет активных сессий", {
       parse_mode: "Markdown",
     });
+    return;
   }
 
-  const { pool, dateStart, currentIndex, correct, incorrect, askMessageId } =
-    session;
+  const {
+    pool,
+    dateStart,
+    currentIndex,
+    correct,
+    incorrect,
+    askMessageId,
+    answers = [],
+  } = session;
   const userInfo = await getUserInfo(ctx);
 
   const askForMap: Record<string, keyof (typeof pool)[number]> = {
@@ -110,36 +119,56 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
       userAnswer ===
         pool[currentIndex][formatToAdd(answerKey)].trim().toLowerCase());
 
+  const direction =
+    userInfo!.gameMode === "Угадай столицу"
+      ? "name"
+      : "capital";
+
   if (isCorrect) {
     correct.push(pool[currentIndex]);
-
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      askMessageId,
-      undefined,
-      `✅ Правильно, *${answerDisplay}*${
-        pool[currentIndex][formatToAdd(answerKey)]
-          ? ` (${pool[currentIndex][formatToAdd(answerKey)]})`
-          : ""
-      }`,
-      { parse_mode: "Markdown" }
-    );
-    // Если ответ верный, удаляем текущий вопрос из пула
+    try {
+      await ctx.telegram.editMessageText(
+        ctx.chat!.id,
+        askMessageId,
+        undefined,
+        `✅ Правильно, *${answerDisplay}*${
+          pool[currentIndex][formatToAdd(answerKey)]
+            ? ` (${pool[currentIndex][formatToAdd(answerKey)]})`
+            : ""
+        }`,
+        { parse_mode: "Markdown" }
+      );
+    } catch (e) {
+      console.warn("Ошибка editMessageText (correct):", e);
+    }
+    answers.push({
+      countryId: pool[currentIndex].id,
+      isCorrect: true,
+      direction,
+    });
     pool.splice(currentIndex, 1);
   } else {
     incorrect.push(pool[currentIndex]);
-
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      askMessageId,
-      undefined,
-      `❌ Правильный ответ: *${answerDisplay}*${
-        pool[currentIndex][formatToAdd(answerKey)]
-          ? ` (${pool[currentIndex][formatToAdd(answerKey)]})`
-          : ""
-      }`,
-      { parse_mode: "Markdown" }
-    );
+    try {
+      await ctx.telegram.editMessageText(
+        ctx.chat!.id,
+        askMessageId,
+        undefined,
+        `❌ Правильный ответ: *${answerDisplay}*${
+          pool[currentIndex][formatToAdd(answerKey)]
+            ? ` (${pool[currentIndex][formatToAdd(answerKey)]})`
+            : ""
+        }`,
+        { parse_mode: "Markdown" }
+      );
+    } catch (e) {
+      console.warn("Ошибка editMessageText (incorrect):", e);
+    }
+    answers.push({
+      countryId: pool[currentIndex].id,
+      isCorrect: false,
+      direction,
+    });
   }
 
   await delay(2000);
@@ -159,6 +188,7 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
       currentIndex: nextIndex,
       correct,
       incorrect,
+      answers,
     });
 
     const showFlagInQuestion = userInfo!.gameMode === "Угадай столицу";
@@ -169,40 +199,56 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
     const nextAsk = `${nextFlag}${pool[nextIndex][askKey]}`;
     const nextAskAdd = pool[nextIndex][formatToAdd(askKey)];
 
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      askMessageId,
-      undefined,
-      `*${nextAsk}*${nextAskAdd ? ` (${nextAskAdd})` : ""}`,
-      {
-        parse_mode: "Markdown",
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: `${userInfo?.questionsMode ? "❓" : ""}`,
-                callback_data: "force_callback",
-              },
+    try {
+      await ctx.telegram.editMessageText(
+        ctx.chat!.id,
+        askMessageId,
+        undefined,
+        `*${nextAsk}*${nextAskAdd ? ` (${nextAskAdd})` : ""}`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                {
+                  text: `${userInfo?.questionsMode ? "❓" : ""}`,
+                  callback_data: "force_callback",
+                },
+              ],
             ],
-          ],
-        },
-      }
-    );
+          },
+        }
+      );
+    } catch (e) {
+      console.warn("Ошибка editMessageText (next):", e);
+    }
   } else {
     const timeDifference = getTimeDiffFormatted(
       new Date(dateStart),
       new Date(Date.now())
     );
-    await ctx.telegram.editMessageText(
-      ctx.chat!.id,
-      askMessageId,
-      undefined,
-      `*${getRandomEmoji()} Молодец!* Круг завершен за ${timeDifference}, ошибки: ${
-        incorrect.length
-      }`,
-      { parse_mode: "Markdown" }
-    );
-    clearSession(ctx.from!.id);
-    goHandler(ctx);
+
+    try {
+      await ctx.telegram.editMessageText(
+        ctx.chat!.id,
+        askMessageId,
+        undefined,
+        `*${getRandomEmoji()} Молодец!* Круг завершен за ${timeDifference}, ошибки: ${
+          incorrect.length
+        }`,
+        { parse_mode: "Markdown" }
+      );
+    } catch (e) {
+      console.warn("Ошибка editMessageText (finish):", e);
+    }
+
+    try {
+      await StatsService.addMany(userInfo!.id, answers);
+    } catch (e) {
+      console.error("Ошибка пакетной записи статистики:", e);
+    }
+
+    await clearSession(ctx.from!.id);
+    await goHandler(ctx);
   }
 }
