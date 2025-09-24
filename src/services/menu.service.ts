@@ -1,10 +1,8 @@
 import { Context } from "telegraf";
-import { registerUser } from "./register.service";
-import { ADMIN_PASS } from "@/config/config";
-import { getUserInfo } from "./update.service";
+import { getUserInfo } from "@/services/update.service";
 import { prisma } from "@/prisma";
-import { clearSession } from "@/redis/session";
 import { abortSession } from "@/utils/helpers";
+import { StatsService } from "@/services/stats.service";
 
 export async function handlePoolSizeMenu(ctx: Context) {
   await ctx.editMessageText(
@@ -140,14 +138,94 @@ export async function handleSettingsMenu(ctx: Context) {
   );
 }
 
+function fmtPct(n: number) {
+  return `${n.toFixed(1)}%`;
+}
 export async function handleStatsMenu(ctx: Context) {
   await abortSession(ctx);
-  await ctx.editMessageText(`😩 УПС! Этот раздел находится в разработке`, {
-    parse_mode: "Markdown",
-    reply_markup: {
-      inline_keyboard: [[{ text: "⬅️ Назад", callback_data: "main_menu" }]],
-    },
-  });
+  if (!ctx.from) throw new Error("ctx.from missing");
+  const userInfo = await (
+    await import("@/services/update.service")
+  ).getUserInfo(ctx);
+  const userId = userInfo!.id;
+
+  const [overview, byDir, topMistakes, byRegion, daily] = await Promise.all([
+    StatsService.getOverview(userId),
+    StatsService.getByDirection(userId),
+    StatsService.getTopMistakes(userId, 5),
+    StatsService.getByRegion(userId),
+    StatsService.getDaily(userId, 7),
+  ]);
+
+  const mistakesStr = topMistakes.length
+    ? topMistakes
+        .map(
+          (m, i) =>
+            `${i + 1}. ${m.country.flag ? m.country.flag + " " : ""}*${
+              m.country.name
+            }* — ${m.count}`
+        )
+        .join("\n")
+    : "_Ошибок пока нет — красиво!_";
+
+  const regionsStr = byRegion.length
+    ? byRegion
+        .map((r) => `• ${r.region}: ${r.total} попыток, ${fmtPct(r.acc)}`)
+        .join("\n")
+    : "_Пока нет данных по регионам_";
+
+  const dailyStr = daily.buckets
+    .map(
+      (b) =>
+        `${b.date}: ${b.total}${
+          b.total ? ` (${fmtPct((b.correct / (b.total || 1)) * 100)})` : ""
+        }`
+    )
+    .join("\n");
+
+  const text =
+    `📊 *Твоя статистика*\n\n` +
+    `Всего ответов: *${overview.total}*\n` +
+    `Верных: *${overview.correct}*  •  Точность: *${fmtPct(
+      overview.accuracy
+    )}*\n` +
+    `Последние 10: *${fmtPct(overview.last10Acc)}*\n\n` +
+    `*По режимам*\n` +
+    `— Угадай столицу (страна→столица): ${byDir.name.total} • ${fmtPct(
+      byDir.name.acc
+    )}\n` +
+    `— Угадай страну (столица→страна): ${byDir.capital.total} • ${fmtPct(
+      byDir.capital.acc
+    )}\n\n` +
+    `*ТОП ошибок*\n${mistakesStr}\n\n` +
+    `*По дням (7д)*\n${daily.bar}\n${dailyStr}\n\n` +
+    `*По регионам*\n${regionsStr}`;
+
+  if ("callback_query" in ctx.update) {
+    await ctx.editMessageText(text, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "⬅️ Назад", callback_data: "main_menu" },
+            { text: "🔁 Обновить", callback_data: "stats_menu" },
+          ],
+        ],
+      },
+    });
+  } else {
+    await ctx.reply(text, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "⬅️ Назад", callback_data: "main_menu" },
+            { text: "🔁 Обновить", callback_data: "stats_menu" },
+          ],
+        ],
+      },
+    });
+  }
 }
 
 export async function handleAboutMenu(ctx: Context) {
