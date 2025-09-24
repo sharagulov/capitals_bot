@@ -1,6 +1,6 @@
 import { Context } from "telegraf";
 import { clearSession, getSession, setSession } from "@/redis/session";
-import { getPool } from "@/services/pool.service";
+import { getHardPool, getPool } from "@/services/pool.service";
 import { getUserInfo } from "@/services/update.service";
 import {
   delay,
@@ -15,7 +15,26 @@ export async function goHandler(ctx: Context) {
   const userInfo = await getUserInfo(ctx);
   const session = await getSession(ctx.from!.id);
   if (session) return;
-  const pool = await getPool(userInfo!.preferredRegion, userInfo!.poolSize);
+
+  let pool: any[] = [];
+
+  const direction =
+    userInfo!.gameMode === "Угадай столицу" ? "name" : "capital";
+
+  if (userInfo!.hardMode) {
+    pool = await getHardPool(
+      userInfo!.id,
+      userInfo!.preferredRegion,
+      direction,
+      userInfo!.poolSize
+    );
+
+    if (pool.length === 0) {
+      pool = await getPool(userInfo!.preferredRegion, userInfo!.poolSize);
+    }
+  } else {
+    pool = await getPool(userInfo!.preferredRegion, userInfo!.poolSize);
+  }
 
   let currentIndex = randomInt(0, pool.length - 1);
 
@@ -120,9 +139,7 @@ export async function sessionWatch(ctx: Context, forcedAnswer?: string) {
         pool[currentIndex][formatToAdd(answerKey)].trim().toLowerCase());
 
   const direction =
-    userInfo!.gameMode === "Угадай столицу"
-      ? "name"
-      : "capital";
+    userInfo!.gameMode === "Угадай столицу" ? "name" : "capital";
 
   if (isCorrect) {
     correct.push(pool[currentIndex]);

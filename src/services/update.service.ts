@@ -13,7 +13,6 @@ export async function updatePoolSize(ctx: Context, value: string) {
     where: { telegramId: id },
     data: { poolSize: newPoolSize },
   });
-  ctx.deleteMessage();
   return handleSettingsMenu(ctx);
 }
 
@@ -35,7 +34,6 @@ export async function updateMode(ctx: Context, value: string) {
     where: { telegramId: id },
     data: { gameMode: gameModeRu },
   });
-  ctx.deleteMessage();
   return handleSettingsMenu(ctx);
 }
 
@@ -55,11 +53,28 @@ export async function updateRegion(ctx: Context, value: string) {
   };
   const regionRu = regionRecord[value ?? "Неизвестно"];
 
+  const user = await prisma.user.findUnique({
+    where: { telegramId: BigInt(ctx.from.id) },
+    select: { id: true, gameMode: true },
+  });
+  if (!user) throw new Error("User not found");
+
+  const direction = user.gameMode === "Угадай столицу" ? "name" : "capital";
+
+  const canUseHard = await StatsService.hardModeAvailable(
+    user.id,
+    regionRu,
+    direction,
+    20
+  );
+
   await prisma.user.update({
     where: { telegramId: id },
-    data: { preferredRegion: regionRu },
+    data: {
+      preferredRegion: regionRu,
+      hardMode: canUseHard ? undefined : false,
+    },
   });
-  ctx.deleteMessage();
   return handleSettingsMenu(ctx);
 }
 
@@ -75,7 +90,7 @@ export async function toggleHardModeFlag(
     userId,
     preferredRegion,
     direction,
-    3
+    20
   );
   if (!available) {
     return { updated: false, reason: "not_available" };
