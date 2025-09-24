@@ -33,3 +33,7 @@ yarn-error.log*
 
 # Игнорируем файлы GitHub Actions (если не используешь)
 .github/
+
+*.db
+*.db-journal
+prisma/dev.db
