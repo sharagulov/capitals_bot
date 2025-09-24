@@ -16,6 +16,8 @@ import {
   handleRegionMenu,
   handleQuestionsMenu,
   goToMainMenu,
+  handleStatsReset,
+  handleStatsResetConfirm,
 } from "@/services/menu.service";
 import { goHandler, sessionWatch } from "@/handlers/go.handler";
 
@@ -29,6 +31,8 @@ const staticRoutes: Record<string, (ctx: Context) => Promise<any>> = {
   region_menu: handleRegionMenu,
   questions_menu: handleQuestionsMenu,
   main_menu: goToMainMenu,
+  stats_reset: handleStatsReset,
+  stats_reset_confirm: handleStatsResetConfirm,
   force_callback: async (ctx: Context) => sessionWatch(ctx, "не знаю"),
 };
 

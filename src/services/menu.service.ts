@@ -208,7 +208,7 @@ export async function handleStatsMenu(ctx: Context) {
         inline_keyboard: [
           [
             { text: "⬅️ Назад", callback_data: "main_menu" },
-            { text: "🔁 Обновить", callback_data: "stats_menu" },
+            { text: "🗑 Сбросить", callback_data: "stats_reset" },
           ],
         ],
       },
@@ -220,12 +220,36 @@ export async function handleStatsMenu(ctx: Context) {
         inline_keyboard: [
           [
             { text: "⬅️ Назад", callback_data: "main_menu" },
-            { text: "🔁 Обновить", callback_data: "stats_menu" },
+            { text: "🗑 Сбросить", callback_data: "stats_reset" },
           ],
         ],
       },
     });
   }
+}
+
+export async function handleStatsReset(ctx: Context) {
+  await ctx.editMessageText("❓ Точно хотите удалить всю статистику?", {
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "Да", callback_data: "stats_reset_confirm" },
+          { text: "Отмена", callback_data: "stats_menu" },
+        ],
+      ],
+    },
+  });
+}
+
+export async function handleStatsResetConfirm(ctx: Context) {
+  if (!ctx.from) return;
+  const userInfo = await getUserInfo(ctx);
+  if (!userInfo) return;
+
+  await StatsService.reset(userInfo.id);
+
+  return handleStatsMenu(ctx);
 }
 
 export async function handleAboutMenu(ctx: Context) {

@@ -2,12 +2,22 @@
 import { prisma } from "@/prisma";
 import { subDays, startOfDay, endOfDay } from "date-fns";
 
-const blocks = ["▁","▂","▃","▄","▅","▆","▇","█"];
+const blocks = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
 function spark(values: number[]) {
   if (!values.length) return "";
   const max = Math.max(...values);
   if (max === 0) return blocks[0].repeat(values.length);
-  return values.map(v => blocks[Math.min(blocks.length - 1, Math.floor((v / max) * (blocks.length - 1)))]).join("");
+  return values
+    .map(
+      (v) =>
+        blocks[
+          Math.min(
+            blocks.length - 1,
+            Math.floor((v / max) * (blocks.length - 1))
+          )
+        ]
+    )
+    .join("");
 }
 
 export class StatsService {
@@ -40,7 +50,7 @@ export class StatsService {
     const last10Acc =
       last10.length === 0
         ? 0
-        : (last10.filter(x => x.isCorrect).length / last10.length) * 100;
+        : (last10.filter((x) => x.isCorrect).length / last10.length) * 100;
 
     return {
       total,
@@ -106,8 +116,20 @@ export class StatsService {
   }
 
   static async getByRegion(userId: number) {
-    const regions = ["Европа", "Азия", "Африка", "Северная Америка", "Южная Америка", "Океания"];
-    const result: { region: string; total: number; correct: number; acc: number }[] = [];
+    const regions = [
+      "Европа",
+      "Азия",
+      "Африка",
+      "Северная Америка",
+      "Южная Америка",
+      "Океания",
+    ];
+    const result: {
+      region: string;
+      total: number;
+      correct: number;
+      acc: number;
+    }[] = [];
 
     for (const region of regions) {
       const total = await prisma.sessionStat.count({
@@ -116,9 +138,14 @@ export class StatsService {
       const correct = await prisma.sessionStat.count({
         where: { userId, isCorrect: true, country: { region } },
       });
-      result.push({ region, total, correct, acc: total ? (correct / total) * 100 : 0 });
+      result.push({
+        region,
+        total,
+        correct,
+        acc: total ? (correct / total) * 100 : 0,
+      });
     }
-    return result.filter(r => r.total > 0).sort((a,b)=>b.total-a.total);
+    return result.filter((r) => r.total > 0).sort((a, b) => b.total - a.total);
   }
 
   static async getDaily(userId: number, days = 7) {
@@ -144,9 +171,16 @@ export class StatsService {
       });
     }
 
-    const totals = buckets.map(b => b.total);
+    const totals = buckets.map((b) => b.total);
     const bar = spark(totals);
 
     return { buckets, bar };
+  }
+
+  static async reset(userId: number) {
+    const deleted = await prisma.sessionStat.deleteMany({
+      where: { userId },
+    });
+    return deleted.count;
   }
 }
