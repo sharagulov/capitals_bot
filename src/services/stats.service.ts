@@ -20,6 +20,8 @@ function spark(values: number[]) {
     .join("");
 }
 
+type Direction = "name" | "capital";
+
 export class StatsService {
   static async addMany(
     userId: number,
@@ -182,5 +184,103 @@ export class StatsService {
       where: { userId },
     });
     return deleted.count;
+  }
+
+  // pool stuff
+
+  static async hardModeAvailable(
+    userId: number,
+    region: string,
+    direction: Direction,
+    minCountries = 5
+  ) {
+    const countryWhere = region === "Все" ? {} : { region };
+    const countries = await prisma.country.findMany({
+      where: countryWhere,
+      select: { id: true },
+    });
+    if (!countries.length) return false;
+    const ids = countries.map((c) => c.id);
+
+    const totals = await prisma.sessionStat.groupBy({
+      by: ["countryId"],
+      where: {
+        userId,
+        direction,
+        countryId: { in: ids },
+      },
+      _count: { countryId: true },
+    });
+
+    const nonZero = totals.filter((t) => t._count.countryId > 0);
+    return nonZero.length >= minCountries;
+  }
+
+  static async getHardPool(
+    userId: number,
+    region: string,
+    direction: Direction,
+    limit: number,
+    k1 = 1,
+    k2 = 3
+  ) {
+    const countryWhere = region === "Все" ? {} : { region };
+    const countries = await prisma.country.findMany({
+      where: countryWhere,
+      select: { id: true, name: true, capital: true, flag: true, region: true, addName: true, addCapital: true },
+    });
+    if (!countries.length) return [];
+
+    const ids = countries.map((c) => c.id);
+
+    const totals = await prisma.sessionStat.groupBy({
+      by: ["countryId"],
+      where: {
+        userId,
+        direction,
+        countryId: { in: ids },
+      },
+      _count: { countryId: true },
+    });
+
+    const errors = await prisma.sessionStat.groupBy({
+      by: ["countryId"],
+      where: {
+        userId,
+        direction,
+        isCorrect: false,
+        countryId: { in: ids },
+      },
+      _count: { countryId: true },
+    });
+
+    const totalMap = new Map<number, number>();
+    const errorMap = new Map<number, number>();
+    totals.forEach((t) => totalMap.set(t.countryId, t._count.countryId));
+    errors.forEach((e) => errorMap.set(e.countryId, e._count.countryId));
+
+    const withScore = countries
+      .map((c) => {
+        const total = totalMap.get(c.id) ?? 0;
+        if (total <= 0) return null;
+        const err = errorMap.get(c.id) ?? 0;
+        const score = err * k1 + (1 / (total + 1)) * k2;
+        return { id: c.id, score };
+      })
+      .filter(Boolean) as { id: number; score: number }[];
+
+    if (!withScore.length) return [];
+
+    withScore.sort((a, b) => b.score - a.score);
+    const topIds = withScore.slice(0, limit).map((x) => x.id);
+
+    const topCountries = await prisma.country.findMany({
+      where: { id: { in: topIds } },
+    });
+    const order = new Map<number, number>();
+    topIds.forEach((id, idx) => order.set(id, idx));
+    topCountries.sort((a, b) => (order.get(a.id)! - order.get(b.id)!));
+
+    return topCountries;
   }
 }

@@ -18,6 +18,7 @@ import {
   goToMainMenu,
   handleStatsReset,
   handleStatsResetConfirm,
+  handleHardModeToggle,
 } from "@/services/menu.service";
 import { goHandler, sessionWatch } from "@/handlers/go.handler";
 
@@ -33,6 +34,7 @@ const staticRoutes: Record<string, (ctx: Context) => Promise<any>> = {
   main_menu: goToMainMenu,
   stats_reset: handleStatsReset,
   stats_reset_confirm: handleStatsResetConfirm,
+  hard_toggle: handleHardModeToggle,
   force_callback: async (ctx: Context) => sessionWatch(ctx, "не знаю"),
 };
 

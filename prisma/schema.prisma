@@ -32,6 +32,7 @@ model User {
   gameMode        String   @default("Угадай столицу")
   preferredRegion String   @default("Все")
   questionsMode   Boolean  @default(false)
+  hardMode        Boolean  @default(false)
 
   stats SessionStat[]
 }

@@ -1,7 +1,8 @@
 import { Context } from "telegraf";
 import { prisma } from "@/prisma";
-import { handleStartMenu } from "@/services/menu.service";
+import { handleSettingsMenu, handleStartMenu } from "@/services/menu.service";
 import { relative } from "path/posix";
+import { StatsService } from "./stats.service";
 
 export async function updatePoolSize(ctx: Context, value: string) {
   if (!ctx.from) throw new Error("ctx.from missing");
@@ -13,7 +14,7 @@ export async function updatePoolSize(ctx: Context, value: string) {
     data: { poolSize: newPoolSize },
   });
   ctx.deleteMessage();
-  return handleStartMenu(ctx);
+  return handleSettingsMenu(ctx);
 }
 
 export async function updateMode(ctx: Context, value: string) {
@@ -28,14 +29,14 @@ export async function updateMode(ctx: Context, value: string) {
   };
   const gameModeRu = gameModeRecord[value ?? "Неизвестно"];
 
-  if (value === "hard") return handleStartMenu(ctx);
+  if (value === "hard") return handleSettingsMenu(ctx);
 
   await prisma.user.update({
     where: { telegramId: id },
     data: { gameMode: gameModeRu },
   });
   ctx.deleteMessage();
-  return handleStartMenu(ctx);
+  return handleSettingsMenu(ctx);
 }
 
 export async function updateRegion(ctx: Context, value: string) {
@@ -59,7 +60,38 @@ export async function updateRegion(ctx: Context, value: string) {
     data: { preferredRegion: regionRu },
   });
   ctx.deleteMessage();
-  return handleStartMenu(ctx);
+  return handleSettingsMenu(ctx);
+}
+
+export async function toggleHardModeFlag(
+  userId: number,
+  preferredRegion: string,
+  gameMode: string
+) {
+  const direction =
+    gameMode === "Угадай столицу" ? "name" : ("capital" as const);
+
+  const available = await StatsService.hardModeAvailable(
+    userId,
+    preferredRegion,
+    direction,
+    3
+  );
+  if (!available) {
+    return { updated: false, reason: "not_available" };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { hardMode: true },
+  });
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { hardMode: !user?.hardMode },
+  });
+
+  return { updated: true };
 }
 
 export async function getUserInfo(ctx: Context) {

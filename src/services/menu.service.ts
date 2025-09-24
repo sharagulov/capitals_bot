@@ -1,5 +1,5 @@
 import { Context } from "telegraf";
-import { getUserInfo } from "@/services/update.service";
+import { getUserInfo, toggleHardModeFlag } from "@/services/update.service";
 import { prisma } from "@/prisma";
 import { abortSession } from "@/utils/helpers";
 import { StatsService } from "@/services/stats.service";
@@ -16,7 +16,7 @@ export async function handlePoolSizeMenu(ctx: Context) {
             { text: "15", callback_data: "pool_15" },
             { text: "20", callback_data: "pool_20" },
           ],
-          [{ text: "⬅️ Назад", callback_data: "main_menu" }],
+          [{ text: "⬅️ Назад", callback_data: "settings_menu" }],
         ],
       },
     }
@@ -24,17 +24,19 @@ export async function handlePoolSizeMenu(ctx: Context) {
 }
 
 export async function handleModeMenu(ctx: Context) {
-  await ctx.editMessageText(`👉 Выбери *режим*, в котором хочешь играть:`, {
-    parse_mode: "Markdown",
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: "Угадай столицу", callback_data: "mode_capitals" }],
-        [{ text: "Угадай страну", callback_data: "mode_countries" }],
-        // [{ text: "Сложный (пока нельзя выбрать)", callback_data: "mode_hard" }],
-        [{ text: "⬅️ Назад", callback_data: "main_menu" }],
-      ],
-    },
-  });
+  await ctx.editMessageText(
+    `👉 Выбери *направление*, в котором хочешь играть:`,
+    {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Угадай столицу", callback_data: "mode_capitals" }],
+          [{ text: "Угадай страну", callback_data: "mode_countries" }],
+          [{ text: "⬅️ Назад", callback_data: "settings_menu" }],
+        ],
+      },
+    }
+  );
 }
 
 export async function handleRegionMenu(ctx: Context) {
@@ -57,7 +59,7 @@ export async function handleRegionMenu(ctx: Context) {
             { text: "Океания", callback_data: "region_oceania" },
             { text: "⭐ Все", callback_data: "region_all" },
           ],
-          [{ text: "⬅️ Назад", callback_data: "main_menu" }],
+          [{ text: "⬅️ Назад", callback_data: "settings_menu" }],
         ],
       },
     }
@@ -92,9 +94,10 @@ export async function handleStartMenu(ctx: Context) {
   await ctx.reply(
     `ГЛАВНОЕ МЕНЮ\n` +
       `— 🏃 Размер круга: ${userInfo?.poolSize}\n` +
-      `— 🎲 Режим игры: ${userInfo?.gameMode}\n` +
+      `— 🎲 Направление: ${userInfo?.gameMode}\n` +
       `— 🌏 Регион: ${userInfo?.preferredRegion}\n` +
-      `— ❓ Вопросы: ${userInfo?.questionsMode ? "Включены" : "Отключены"}`,
+      `— ❓ Вопросы: ${userInfo?.questionsMode ? "Включены" : "Отключены"}\n` +
+      `— 🔥 Сложный режим: ${userInfo?.hardMode ? "Включен" : "Отключен"}`,
     {
       parse_mode: "Markdown",
       reply_markup: {
@@ -113,20 +116,37 @@ export async function handleStartMenu(ctx: Context) {
 
 export async function handleSettingsMenu(ctx: Context) {
   await abortSession(ctx);
+
+  if (!ctx.from) throw new Error("ctx.from missing");
+  const tgId = ctx.from.id;
+
+  const user = await prisma.user.findUnique({
+    where: { telegramId: BigInt(tgId) },
+    select: { hardMode: true },
+  });
+
+  const hardLabel = user?.hardMode
+    ? "🔥 Сложный режим: Вкл"
+    : "🔥 Сложный режим: Выкл";
+
   await ctx.editMessageText(
     `⚙️ НАСТРОЙКИ\n\n` +
       `— *Круг* регулирует размер группы слов, которые предлагаются для отгадываня\n\n` +
-      `— *Режим* переключает режим игры\n\n` +
+      `— *Направление* переключает страна-столица или столица-страна игры\n\n` +
       `— *Регион* фильтрует страны по частям света\n\n` +
-      `— *Вопросы* включает кнопку под каждым словом, которая показывает верный ответ\n\n`,
+      `— *Вопросы* включает кнопку под каждым словом, которая показывает верный ответ\n\n` +
+      `— *Сложный режим* - это проработка слабых мест на основе статистики\n`,
     {
       parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
           [
             { text: "🏃 Круг", callback_data: "pool_menu" },
-            { text: "🎲 Режим", callback_data: "mode_menu" },
+            { text: "🎲 Направление", callback_data: "mode_menu" },
             { text: "🌏 Регион", callback_data: "region_menu" },
+          ],
+          [
+            { text: hardLabel, callback_data: "hard_toggle" }, // 🆕
           ],
           [
             { text: "⬅️ Назад", callback_data: "main_menu" },
@@ -136,6 +156,39 @@ export async function handleSettingsMenu(ctx: Context) {
       },
     }
   );
+}
+
+export async function handleHardModeToggle(ctx: Context) {
+  if (!ctx.from) throw new Error("ctx.from missing");
+
+  const user = await prisma.user.findUnique({
+    where: { telegramId: BigInt(ctx.from.id) },
+    select: { id: true, hardMode: true, preferredRegion: true, gameMode: true },
+  });
+  if (!user) throw new Error("User not found");
+
+  const result = await toggleHardModeFlag(
+    user.id,
+    user.preferredRegion,
+    user.gameMode
+  );
+
+  if (!result.updated && result.reason === "not_available") {
+    return ctx.editMessageText(
+      `🔥 У тебя пока мало статистики по: ${user.preferredRegion}. ` +
+        "Поиграй немного, и тогда сможешь включить Сложный режим для неё.",
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "⬅️ Назад", callback_data: "settings_menu" }],
+          ],
+        },
+      }
+    );
+  }
+
+  return handleSettingsMenu(ctx);
 }
 
 function fmtPct(n: number) {
@@ -258,19 +311,19 @@ export async function handleAboutMenu(ctx: Context) {
     `ℹ️ *О проекте CAPITALS*\n\n` +
       `Это бот для тренировки знаний столиц и стран.\n` +
       `✌ *Правила простые.* Запускается сессия, создается «круг» из столиц/стран. Сессия длится, пока ты не ответишь правильно на все слова из созданного круга. При неверном ответе столица/страна будет продолжать попадаться в данной сессии. Отгадаешь все слова из круга — начнется новая сессия. \n\n` +
-      `🔹 *Поддерживает два режима:*\n` +
+      `🔹 *Поддерживает два направления:*\n` +
       `— Угадай столицу по стране\n` +
       `— Угадай страну по столице\n\n` +
       `🔹 *Есть настройка размера круга* (сколько заданий за сессию)\n` +
       `🔹 *Можно выбрать регион* (Европа, Азия и т.д.)\n\n` +
-      `🔹 *Сохраняется статистика* (в процессе доработки)\n\n` +
+      `🔹 *Сохраняется статистика*\n\n` +
       `❇ Все столицы и страны, имеющие составные названия через дефис или пробел принимаются *без разделения* или *c пробелом*, пример:\n` +
       `✅ _Сент Китс = СентКитс_\n` +
       `❌ _Сент-Китс_\n\n` +
       `⚠️ *Возможные баги*\n` +
       `— Иногда бот не показывает информацию о том, правильный ли ответ\n` +
       `— Сильная зависимость скорости работы бота от качества интернет-соединения\n` +
-      `— Потеря сесии после выхода во время игры (не страшно)\n\n` +
+      `— Потеря сессии после выхода во время игры (не страшно)\n\n` +
       `_Версия: MVP. Функционал в разработке_`,
     {
       parse_mode: "Markdown",
